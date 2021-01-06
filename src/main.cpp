@@ -9,13 +9,14 @@ using namespace std;
 int main(int argc, char *argv[])
 {
 
-    ifstream stream("../test/mpi_project_dev0.tsv");
-
     MPI_Init(NULL, NULL);
     int rank;
     int size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    ifstream stream("../test/mpi_project_dev0.tsv");
+
     int P;
     stream >> P;
 
@@ -23,76 +24,81 @@ int main(int argc, char *argv[])
     int A;
     int M;
     int T;
-    int num_of_instance = N / (P - 1);
     stream >> N >> A >> M >> T;
+    int num_of_instance = N / (P - 1);
+
+    int attribute_per_processor = (A + 1) * (N / (P - 1));
+    int instance_per_processor = N / (P - 1);
+
+    double allAttributes[N * (A + 1)];
+    double attributes[instance_per_processor][A+1];
 
     if (rank == 0)
     {
-        double *instances[N];
-
-        for (int i = 1; i <= N; i++)
+        for (int i = 0; i < N * (A + 1); i++)
         {
-            double *attributes = new double[A + 1];
-            for (int j = 1; j <= A; j++)
-            {
-                stream >> attributes[j];
-            }
-            stream >> attributes[0];
-            instances[i - 1] = attributes;
+            stream >> allAttributes[i];
             // for (int k = 0; k < A + 1; k++)
             // {
             //     cout << attributes[k] << " ";
             // }
             // cout << endl;
         }
-        for (int a = 0; a < 50; a++)
-        {
-            double *ptr = instances[a];
-            for (int b = 0; b < 11; b++)
-            {
-                cout << ptr[b] << " ";
-            }
-            cout << endl;
-        }
-        cout << sizeof(instances) / sizeof(instances[0]) << endl;
-        for (int i = 0; i < N; i++)
-        {
-             
-            // for(int r=0; r<A+1; r++) {
-            //     cout << send[r] << " ";
-            // }
-            // cout << "################ " << i/num_of_instance+1 << endl;
-            MPI_Send(
-                instances[i],
-                A + 1,
-                MPI_DOUBLE,
-                /*i/num_of_instance+*/1,
-                0,
-                MPI_COMM_WORLD);
-        }
+        // for(int i=0; i<N*A+N; i++) {
+        //     cout << allAttributes[i] << " ";
+        //     if((i+1)%(A+1) == 0) {
+        //         cout << endl;
+        //     }
+        // }
     }
-    else
-    {
-        double *instances[N];
-        for (int i = 0; i < N; i++)
-        {
-            double *attributes = new double[A + 1];
-            MPI_Recv(
-                attributes,
-                A + 1,
-                MPI_DOUBLE,
-                0,
-                0,
-                MPI_COMM_WORLD,
-                MPI_STATUS_IGNORE);
-            instances[0] = attributes;
 
-            for (int j = 0; j < A + 1; j++)
-            {
-                cout << instances[i][j] << " ";
+    cout << "---------------------------------------------" << endl;
+    MPI_Scatter(allAttributes, attribute_per_processor, MPI_DOUBLE, attributes, attribute_per_processor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank != 0)
+    {
+        // for(int i=0; i<instance_per_processor; i++) {
+        //     for(int j=0; j<A+1; j++) {
+        //         cout << attributes[i][j] << " ";
+        //     }
+        //     cout << endl;
+        // }
+        // for(int i=0; i<attribute_per_processor; i++) {
+        //     cout << attributes[i] << " ";
+        //     if((i+1)%(A+1) == 0) {
+        //         cout << endl;
+        //     }
+        // }
+        double W[A];
+        int nearest_hit = INT32_MAX;
+        int nearest_miss = INT32_MAX;
+        int nearest_hit_instance;
+        int nearest_miss_instance;
+        int nearest_value;
+        for(int i=0; i<M; i++) {
+            for(int j=0; j<instance_per_processor; j++) {
+                if(i==j) 
+                    continue;
+                for(int k=0; k<A+1; k++) {
+                    nearest_value += abs(attributes[i][k] - attributes[j][k]);
+                }
+                if(attributes[i][10] == attributes[j][10] ) 
+                {
+                    if(nearest_value < nearest_hit) 
+                        nearest_hit = nearest_value;
+                        nearest_hit_instance = j;
+                } 
+                else
+                {
+                    if(nearest_value < nearest_miss)
+                        nearest_miss = nearest_value;
+                        nearest_miss_instance = j;
+                }
             }
-            cout << "---------------" << rank << endl;
+             
+
         }
+        
     }
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
