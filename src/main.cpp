@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     int attribute_per_processor = (A + 1) * (N / (P - 1));
     int instance_per_processor = N / (P - 1);
-    int recieveCount = attribute_per_processor;
+    int receiveCount = attribute_per_processor;
 
     double allAttributes[N * (A + 1)];
     double attributes[instance_per_processor][A + 1];
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     displs[0] = 0;
     MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attribute_per_processor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    if (rank != 0)
+    if (rank == 1)
     {
 
         double max[A];
@@ -66,10 +66,22 @@ int main(int argc, char *argv[])
         double W[A];
         for (int u = 0; u < A; u++)
         {
-            W[u] = 0;
-            max[u] = INTMAX_MIN;
-            min[u] = INTMAX_MAX;
+            W[u] = 0.0;
+            max[u] = -5000;
+            min[u] = 5000;
         }
+        for (int j = 0; j < instance_per_processor; j++)
+            {
+                
+                for (int k = 0; k < A; k++) {
+                    if(attributes[j][k] > max[k])
+                        max[k] = attributes[j][k];
+                    if(attributes[j][k] < min[k])
+                        min[k] = attributes[j][k];
+                       
+                }
+            }
+        
 
         for (int i = 0; i < M; i++)
         {
@@ -85,15 +97,15 @@ int main(int argc, char *argv[])
                 int nearest_value = 0;
                 for (int k = 0; k < A; k++)
                 {
-                    if (max[k] < attributes[j][k])
-                    {
-                        max[k] = attributes[j][k];
-                    }
+                    // if (max[k] < attributes[j][k])
+                    // {
+                    //     max[k] = attributes[j][k];
+                    // }
 
-                    if (min[k] > attributes[j][k])
-                    {
-                        min[k] = attributes[j][k];
-                    }
+                    // if (min[k] > attributes[j][k])
+                    // {
+                    //     min[k] = attributes[j][k];
+                    // }
                     nearest_value += abs(attributes[i][k] - attributes[j][k]);
                 }
 
@@ -114,59 +126,73 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-
+    
+            // cout << "-----------------------------------------------" << endl;
+            // printf("%dP nearest miss for iteration %d : %d\n", rank, i, nearest_miss_instance);
+            // printf("%dP nearest hit for iteration %d : %d\n", rank, i, nearest_hit_instance);
+            // cout << "-----------------------------------------------" << endl;
             for (int a = 0; a < A; a++)
             {
-                double diff = 0;
-                diff += abs(attributes[i][a] - attributes[nearest_miss_instance][a]);
-                diff -= abs(attributes[i][a] - attributes[nearest_hit_instance][a]);
-                diff /= max[a] - min[a];
-                diff /= M;
-                W[a] += diff;
+                // double diff = 0;
+                // diff += abs(attributes[i][a] - attributes[nearest_miss_instance][a]);
+                // diff -= abs(attributes[i][a] - attributes[nearest_hit_instance][a]);
+                // diff /= (max[a] - min[a]);
+                // diff /= M;
+                // W[a] += diff;
+                //printf("((%f - %f )/%f)/%d\n", attributes[i][a],attributes[nearest_miss_instance][a],max[a] - min[a],M);
+                W[a] += ((abs(attributes[i][a] - attributes[nearest_miss_instance][a])) / (max[a] - min[a]))/ M;
+                W[a] -= ((abs(attributes[i][a] - attributes[nearest_hit_instance][a])) / (max[a] - min[a]))/ M;
+                cout << W[a] << " ";
             }
+            cout << endl;
         }
 
-        int result[T];
+        // for (int a = 0; a < A; a++)
+        // {
+        //     cout << min[a] << " ";
+        // }
+        // cout << " P" << rank << endl;
 
-        priority_queue<pair<double, int>> queue;
-        for (int i = 0; i < A; i++)
-        {
-            queue.push(make_pair(W[i], i));
-        }
+        // int result[T];
 
-        printf("Slave P%d: ", rank);
-        for (int i = 1; i <= T; i++)
-        {
-            result[i - 1] = queue.top().second;
-            queue.pop();
-        }
+        // priority_queue<pair<double, int>> queue;
+        // for (int i = 0; i < A; i++)
+        // {
+        //     queue.push(make_pair(W[i], i));
+        // }
 
-        bool swapped;
-        for (int i = 0; i < T - 1; i++)
-        {
-            swapped = false;
-            for (int j = 0; j < T - i - 1; j++)
-            {
-                if (result[j] > result[j + 1])
-                {
-                    int temp = result[j];
-                    result[j] = result[j + 1];
-                    result[j + 1] = temp;
-                    swapped = true;
-                }
-            }
-            if (swapped == false)
-                    break;
-        }
+        // printf("Slave P%d: ", rank);
+        // for (int i = 1; i <= T; i++)
+        // {
+        //     result[i - 1] = queue.top().second;
+        //     queue.pop();
+        // }
 
-        for (int i = 1; i <= T; i++)
-        {
-            cout << result[i-1] << " ";
-        }
-        cout << endl;
-        
+        // bool swapped;
+        // for (int i = 0; i < T - 1; i++)
+        // {
+        //     swapped = false;
+        //     for (int j = 0; j < T - i - 1; j++)
+        //     {
+        //         if (result[j] > result[j + 1])
+        //         {
+        //             int temp = result[j];
+        //             result[j] = result[j + 1];
+        //             result[j + 1] = temp;
+        //             swapped = true;
+        //         }
+        //     }
+        //     if (swapped == false)
+        //             break;
+        // }
+
+        // for (int i = 1; i <= T; i++)
+        // {
+        //     cout << result[i-1] << " ";
+        // }
+        // cout << endl;
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+   // MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
 
     return 0;
