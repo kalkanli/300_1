@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attribute_per_processor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     int maximumIndices[T];
-    int maxAttributes[T * P - T];
+    int maxAttributes[T*P];
     if (rank != 0)
     {
 
@@ -169,13 +169,17 @@ int main(int argc, char *argv[])
     }
     MPI_Gather(maximumIndices, T, MPI_INT, maxAttributes, T, MPI_INT, 0, MPI_COMM_WORLD);
 
+
+
     if (rank == 0)
     {
-        sort(maxAttributes, maxAttributes+(P-1)*T);
-        for(int i = 0; i < P*T-T; i++) {
-            printf("%d ", maxAttributes[i]);
+        printf("Master P0: ");
+        sort(maxAttributes+T, maxAttributes+P*T);
+        for(int i = T; i < (P)*T-1; i++) {
+            if(maxAttributes[i] != maxAttributes[i+1])
+                printf("%d ", maxAttributes[i]);
         }
-        cout << endl;
+        printf("%d\n", maxAttributes[P*T-1]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
