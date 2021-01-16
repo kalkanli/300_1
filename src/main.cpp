@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    ifstream stream("../test/mpi_project_dev2.tsv");
+    ifstream stream(argv[1]);
 
     int P;
     stream >> P;
