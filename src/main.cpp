@@ -1,3 +1,11 @@
+/**
+ * Student Name: A. Taha Kalkanlı
+ * Student Number: 2017400189
+ * Compile Status: Compiling
+ * Program Status: Working
+ * Notes: in order to run this program after compiling you should use the terminal code:
+ *        mpirun -np <processor_number> --oversubscribe main <input_file_path>
+ */
 #include <fstream>
 #include <stdio.h>
 #include <iostream>
