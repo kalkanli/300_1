@@ -4,6 +4,7 @@
 #include <vector>
 #include <queue>
 #include <mpi.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -16,7 +17,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    ifstream stream("../test/mpi_project_dev0.tsv");
+    ifstream stream("../test/mpi_project_dev2.tsv");
 
     int P;
     stream >> P;
@@ -47,6 +48,9 @@ int main(int argc, char *argv[])
     MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&T, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+    /*
+    *   Scatters the array into slave processors. 54-63
+    */
     int sendcounts[P];
     int displs[P];
     for (int x = 0; x < P; x++)
@@ -58,7 +62,9 @@ int main(int argc, char *argv[])
     displs[0] = 0;
     MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attribute_per_processor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    if (rank == 1)
+    int maximumIndices[T];
+    int maxAttributes[T * P - T];
+    if (rank != 0)
     {
 
         double max[A];
@@ -123,52 +129,56 @@ int main(int argc, char *argv[])
             }
         }
 
-        for (int a = 0; a < A; a++)
+        //------------------------------------------------------------------------------------------------------------
+        double minimumWeight = INTMAX_MAX;
+        int minimumWeightIndex = 0;
+
+        for (int t = 0; t < T; t++)
         {
-            cout << W[a] << " ";
+            maximumIndices[t] = t;
+            if (W[t] < minimumWeight)
+            {
+                minimumWeightIndex = t;
+                minimumWeight = W[t];
+            }
         }
-        cout << " P" << rank << endl;
+        for (int a = T; a < A; a++)
+        {
+            if (W[a] > minimumWeight)
+            {
+                maximumIndices[minimumWeightIndex] = a;
+                minimumWeight = W[a];
 
-        // int result[T];
-
-        // priority_queue<pair<double, int>> queue;
-        // for (int i = 0; i < A; i++)
-        // {
-        //     queue.push(make_pair(W[i], i));
-        // }
-
-        // printf("Slave P%d: ", rank);
-        // for (int i = 1; i <= T; i++)
-        // {
-        //     result[i - 1] = queue.top().second;
-        //     queue.pop();
-        // }
-
-        // bool swapped;
-        // for (int i = 0; i < T - 1; i++)
-        // {
-        //     swapped = false;
-        //     for (int j = 0; j < T - i - 1; j++)
-        //     {
-        //         if (result[j] > result[j + 1])
-        //         {
-        //             int temp = result[j];
-        //             result[j] = result[j + 1];
-        //             result[j + 1] = temp;
-        //             swapped = true;
-        //         }
-        //     }
-        //     if (swapped == false)
-        //             break;
-        // }
-
-        // for (int i = 1; i <= T; i++)
-        // {
-        //     cout << result[i-1] << " ";
-        // }
-        // cout << endl;
+                for (int t = 0; t < T; t++)
+                {
+                    if (W[maximumIndices[t]] < minimumWeight)
+                    {
+                        minimumWeight = W[maximumIndices[t]];
+                        minimumWeightIndex = t;
+                    }
+                }
+            }
+        }
+        sort(maximumIndices, maximumIndices + T);
+        printf("Slave P%d: ", rank);
+        for (int b = 0; b < T; b++)
+        {
+            printf("%d ", maximumIndices[b]);
+        }
+        cout << endl;
     }
-    // MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gather(maximumIndices, T, MPI_INT, maxAttributes, T, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        sort(maxAttributes, maxAttributes+(P-1)*T);
+        for(int i = 0; i < P*T-T; i++) {
+            printf("%d ", maxAttributes[i]);
+        }
+        cout << endl;
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
 
     return 0;
