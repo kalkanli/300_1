@@ -67,21 +67,19 @@ int main(int argc, char *argv[])
         for (int u = 0; u < A; u++)
         {
             W[u] = 0.0;
-            max[u] = -5000;
-            min[u] = 5000;
+            max[u] = INTMAX_MIN;
+            min[u] = INTMAX_MAX;
         }
         for (int j = 0; j < instance_per_processor; j++)
+        {
+            for (int k = 0; k < A; k++)
             {
-                
-                for (int k = 0; k < A; k++) {
-                    if(attributes[j][k] > max[k])
-                        max[k] = attributes[j][k];
-                    if(attributes[j][k] < min[k])
-                        min[k] = attributes[j][k];
-                       
-                }
+                if (attributes[j][k] > max[k])
+                    max[k] = attributes[j][k];
+                if (attributes[j][k] < min[k])
+                    min[k] = attributes[j][k];
             }
-        
+        }
 
         for (int i = 0; i < M; i++)
         {
@@ -97,15 +95,6 @@ int main(int argc, char *argv[])
                 int nearest_value = 0;
                 for (int k = 0; k < A; k++)
                 {
-                    // if (max[k] < attributes[j][k])
-                    // {
-                    //     max[k] = attributes[j][k];
-                    // }
-
-                    // if (min[k] > attributes[j][k])
-                    // {
-                    //     min[k] = attributes[j][k];
-                    // }
                     nearest_value += abs(attributes[i][k] - attributes[j][k]);
                 }
 
@@ -126,32 +115,19 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-    
-            // cout << "-----------------------------------------------" << endl;
-            // printf("%dP nearest miss for iteration %d : %d\n", rank, i, nearest_miss_instance);
-            // printf("%dP nearest hit for iteration %d : %d\n", rank, i, nearest_hit_instance);
-            // cout << "-----------------------------------------------" << endl;
+
             for (int a = 0; a < A; a++)
             {
-                // double diff = 0;
-                // diff += abs(attributes[i][a] - attributes[nearest_miss_instance][a]);
-                // diff -= abs(attributes[i][a] - attributes[nearest_hit_instance][a]);
-                // diff /= (max[a] - min[a]);
-                // diff /= M;
-                // W[a] += diff;
-                //printf("((%f - %f )/%f)/%d\n", attributes[i][a],attributes[nearest_miss_instance][a],max[a] - min[a],M);
-                W[a] += ((abs(attributes[i][a] - attributes[nearest_miss_instance][a])) / (max[a] - min[a]))/ M;
-                W[a] -= ((abs(attributes[i][a] - attributes[nearest_hit_instance][a])) / (max[a] - min[a]))/ M;
-                cout << W[a] << " ";
+                W[a] += ((abs(attributes[i][a] - attributes[nearest_miss_instance][a])) / (max[a] - min[a])) / M;
+                W[a] -= ((abs(attributes[i][a] - attributes[nearest_hit_instance][a])) / (max[a] - min[a])) / M;
             }
-            cout << endl;
         }
 
-        // for (int a = 0; a < A; a++)
-        // {
-        //     cout << min[a] << " ";
-        // }
-        // cout << " P" << rank << endl;
+        for (int a = 0; a < A; a++)
+        {
+            cout << W[a] << " ";
+        }
+        cout << " P" << rank << endl;
 
         // int result[T];
 
@@ -192,7 +168,7 @@ int main(int argc, char *argv[])
         // }
         // cout << endl;
     }
-   // MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
 
     return 0;
