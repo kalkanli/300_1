@@ -32,19 +32,14 @@ int main(int argc, char *argv[])
     int P;
     stream >> P;
 
-    int N;
-    int A;
-    int M;
-    int T;
+    int N, A, M, T;
     stream >> N >> A;
-    int num_of_instance = N / (P - 1);
 
-    int attribute_per_processor = (A + 1) * (N / (P - 1));
-    int instance_per_processor = N / (P - 1);
-    int receiveCount = attribute_per_processor;
+    int attributePerProcessor = (A + 1) * (N / (P - 1));
+    int instancePerProcessor = N / (P - 1);
 
     double allAttributes[N * (A + 1)];
-    double attributes[instance_per_processor][A + 1];
+    double attributes[instancePerProcessor][A + 1];
 
     if (rank == 0)
     {
@@ -65,15 +60,15 @@ int main(int argc, char *argv[])
     int displs[P];
     for (int x = 0; x < P; x++)
     {
-        sendcounts[x] = attribute_per_processor;
-        displs[x] = (x - 1) * attribute_per_processor;
+        sendcounts[x] = attributePerProcessor;
+        displs[x] = (x - 1) * attributePerProcessor;
     }
     sendcounts[0] = 0;
     displs[0] = 0;
-    MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attribute_per_processor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attributePerProcessor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    int maximumIndices[T];
-    int maxAttributes[T*P];
+    int highestWeightedAttributes[T];
+    int gatheredHighestWeightedAttributes[T*P];
     if (rank != 0)
     {
 
@@ -86,7 +81,7 @@ int main(int argc, char *argv[])
             max[u] = INTMAX_MIN;
             min[u] = INTMAX_MAX;
         }
-        for (int j = 0; j < instance_per_processor; j++)
+        for (int j = 0; j < instancePerProcessor; j++)
         {
             for (int k = 0; k < A; k++)
             {
@@ -99,53 +94,51 @@ int main(int argc, char *argv[])
 
         for (int i = 0; i < M; i++)
         {
-            double nearest_hit = INTMAX_MAX;
-            double nearest_miss = INTMAX_MAX;
-            int nearest_hit_instance;
-            int nearest_miss_instance;
+            double nearestHit = INTMAX_MAX;
+            double nearestMiss = INTMAX_MAX;
+            int nearestHitInstance;
+            int nearestMissInstance;
 
-            for (int j = 0; j < instance_per_processor; j++)
+            for (int j = 0; j < instancePerProcessor; j++)
             {
-                if (i == j)
-                    continue;
-                int nearest_value = 0;
+                if (i == j) continue;
+                int nearestValue = 0;
                 for (int k = 0; k < A; k++)
                 {
-                    nearest_value += abs(attributes[i][k] - attributes[j][k]);
+                    nearestValue += abs(attributes[i][k] - attributes[j][k]);
                 }
 
                 if (attributes[i][A] == attributes[j][A])
                 {
-                    if (nearest_value < nearest_hit)
+                    if (nearestValue < nearestHit)
                     {
-                        nearest_hit = nearest_value;
-                        nearest_hit_instance = j;
+                        nearestHit = nearestValue;
+                        nearestHitInstance = j;
                     }
                 }
                 else
                 {
-                    if (nearest_value < nearest_miss)
+                    if (nearestValue < nearestMiss)
                     {
-                        nearest_miss = nearest_value;
-                        nearest_miss_instance = j;
+                        nearestMiss = nearestValue;
+                        nearestMissInstance = j;
                     }
                 }
             }
 
             for (int a = 0; a < A; a++)
             {
-                W[a] += ((abs(attributes[i][a] - attributes[nearest_miss_instance][a])) / (max[a] - min[a])) / M;
-                W[a] -= ((abs(attributes[i][a] - attributes[nearest_hit_instance][a])) / (max[a] - min[a])) / M;
+                W[a] += ((abs(attributes[i][a] - attributes[nearestMissInstance][a])) / (max[a] - min[a])) / M;
+                W[a] -= ((abs(attributes[i][a] - attributes[nearestHitInstance][a])) / (max[a] - min[a])) / M;
             }
         }
 
-        //------------------------------------------------------------------------------------------------------------
         double minimumWeight = INTMAX_MAX;
         int minimumWeightIndex = 0;
 
         for (int t = 0; t < T; t++)
         {
-            maximumIndices[t] = t;
+            highestWeightedAttributes[t] = t;
             if (W[t] < minimumWeight)
             {
                 minimumWeightIndex = t;
@@ -156,40 +149,40 @@ int main(int argc, char *argv[])
         {
             if (W[a] > minimumWeight)
             {
-                maximumIndices[minimumWeightIndex] = a;
+                highestWeightedAttributes[minimumWeightIndex] = a;
                 minimumWeight = W[a];
 
                 for (int t = 0; t < T; t++)
                 {
-                    if (W[maximumIndices[t]] < minimumWeight)
+                    if (W[highestWeightedAttributes[t]] < minimumWeight)
                     {
-                        minimumWeight = W[maximumIndices[t]];
+                        minimumWeight = W[highestWeightedAttributes[t]];
                         minimumWeightIndex = t;
                     }
                 }
             }
         }
-        sort(maximumIndices, maximumIndices + T);
+        sort(highestWeightedAttributes, highestWeightedAttributes + T);
         printf("Slave P%d: ", rank);
         for (int b = 0; b < T; b++)
         {
-            printf("%d ", maximumIndices[b]);
+            printf("%d ", highestWeightedAttributes[b]);
         }
         cout << endl;
     }
-    MPI_Gather(maximumIndices, T, MPI_INT, maxAttributes, T, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(highestWeightedAttributes, T, MPI_INT, gatheredHighestWeightedAttributes, T, MPI_INT, 0, MPI_COMM_WORLD);
 
 
 
     if (rank == 0)
     {
         printf("Master P0: ");
-        sort(maxAttributes+T, maxAttributes+P*T);
+        sort(gatheredHighestWeightedAttributes+T, gatheredHighestWeightedAttributes+P*T);
         for(int i = T; i < (P)*T-1; i++) {
-            if(maxAttributes[i] != maxAttributes[i+1])
-                printf("%d ", maxAttributes[i]);
+            if(gatheredHighestWeightedAttributes[i] != gatheredHighestWeightedAttributes[i+1])
+                printf("%d ", gatheredHighestWeightedAttributes[i]);
         }
-        printf("%d\n", maxAttributes[P*T-1]);
+        printf("%d\n", gatheredHighestWeightedAttributes[P*T-1]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
