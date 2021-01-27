@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
             if(gatheredHighestWeightedAttributes[i] != gatheredHighestWeightedAttributes[i+1])
                 printf("%d ", gatheredHighestWeightedAttributes[i]);
         }
-        printf("%d", gatheredHighestWeightedAttributes[P*T-1]);
+        printf("%d\n", gatheredHighestWeightedAttributes[P*T-1]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
