@@ -1,11 +1,11 @@
 /*
  *
- * Student Name: A. Taha Kalkanlı
- * Student Number: 2017400189
- * Compile Status: Compiling
- * Program Status: Working
- * Notes: in order to run this program after compiling you should use the terminal code:
- *        "mpirun -np <processor_number> --oversubscribe main <input_file_path>"
+ * Student Name:    A. Taha Kalkanlı
+ * Student Number:  2017400189
+ * Compile Status:  Compiling
+ * Program Status:  Working
+ * Notes:           in order to run this program after compiling you should use the terminal code:
+ *                      "mpirun -np <processor_number> --oversubscribe main <input_file_path>"
  * 
  */
 #include <fstream>
@@ -35,11 +35,11 @@ int main(int argc, char *argv[])
     int N, A, M, T;
     stream >> N >> A;
 
-    int attributePerProcessor = (A + 1) * (N / (P - 1));
-    int instancePerProcessor = N / (P - 1);
+    int attributePerProcessor = (A + 1) * (N / (P - 1)); // number of attributes + class value that will be processed by each processor.
+    int instancePerProcessor = N / (P - 1); // number of instances value that will be processed by each processor.
 
-    double allAttributes[N * (A + 1)];
-    double attributes[instancePerProcessor][A + 1];
+    double allAttributes[N * (A + 1)]; // all atributes + class values. this is used as a send buffer.
+    double attributes[instancePerProcessor][A + 1]; // used as a recieve buffer.
 
     if (rank == 0)
     {
@@ -63,25 +63,27 @@ int main(int argc, char *argv[])
         sendcounts[x] = attributePerProcessor;
         displs[x] = (x - 1) * attributePerProcessor;
     }
-    sendcounts[0] = 0;
-    displs[0] = 0;
-    MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attributePerProcessor, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    sendcounts[0] = 0; // number of elements that will be sent to each processor from allAttributes[]
+    displs[0] = 0; // starting index of elements that will be sent to each processors
+    MPI_Scatterv(allAttributes, sendcounts, displs, MPI_DOUBLE, attributes, attributePerProcessor, MPI_DOUBLE, 0, MPI_COMM_WORLD); 
 
-    int highestWeightedAttributes[T];
-    int gatheredHighestWeightedAttributes[T*P];
-    if (rank != 0)
+    int highestWeightedAttributes[T]; // send buffer for gatterv method. data that will be sent to master processor.
+    int gatheredHighestWeightedAttributes[T*P]; // recieve buffer for master processor.
+    
+    if (rank != 0) // ıf rank != 0 means not the master processor.
     {
-
-        double max[A];
-        double min[A];
-        double W[A];
-        for (int u = 0; u < A; u++)
+        double max[A]; // holds the maximum features along scattered instances in every process.
+        double min[A]; // holds the minimum features along scattered instances in every process.
+        double W[A]; // weight array.
+        
+        for (int u = 0; u < A; u++) // initializes the arrays above before using them.
         {
             W[u] = 0.0;
             max[u] = INTMAX_MIN;
             min[u] = INTMAX_MAX;
         }
-        for (int j = 0; j < instancePerProcessor; j++)
+
+        for (int j = 0; j < instancePerProcessor; j++) // finds the minimum and maximum of each feature.
         {
             for (int k = 0; k < A; k++)
             {
@@ -92,60 +94,65 @@ int main(int argc, char *argv[])
             }
         }
 
-        for (int i = 0; i < M; i++)
+        for (int i = 0; i < M; i++) // target instance is M.
         {
-            double nearestHit = INTMAX_MAX;
-            double nearestMiss = INTMAX_MAX;
-            int nearestHitInstance;
-            int nearestMissInstance;
+            double nearestHit = INTMAX_MAX; // nearest manhattan distance to hit instance.
+            double nearestMiss = INTMAX_MAX; // nearest manhattan distance to miss instance.
+            int nearestHitInstance; // instance # of nearest hit.
+            int nearestMissInstance; // instance # of nearest miss.
 
-            for (int j = 0; j < instancePerProcessor; j++)
+            for (int j = 0; j < instancePerProcessor; j++) // finds the nearest hit and nearest miss instances. then updates the W[] 
             {
-                if (i == j) continue;
-                int nearestValue = 0;
+                if (i == j) continue; // if the same instance just skip it.
+                int manhattanDistance = 0; // Manhattan Distance
                 for (int k = 0; k < A; k++)
                 {
-                    nearestValue += abs(attributes[i][k] - attributes[j][k]);
+                    manhattanDistance += abs(attributes[i][k] - attributes[j][k]);
                 }
 
-                if (attributes[i][A] == attributes[j][A])
+                if (attributes[i][A] == attributes[j][A]) // if it is a hit.
                 {
-                    if (nearestValue < nearestHit)
+                    if (manhattanDistance < nearestHit)
                     {
-                        nearestHit = nearestValue;
+                        nearestHit = manhattanDistance;
                         nearestHitInstance = j;
                     }
                 }
-                else
+                else // if it is a miss.
                 {
-                    if (nearestValue < nearestMiss)
+                    if (manhattanDistance < nearestMiss)
                     {
-                        nearestMiss = nearestValue;
+                        nearestMiss = manhattanDistance;
                         nearestMissInstance = j;
                     }
                 }
             }
 
-            for (int a = 0; a < A; a++)
+            for (int a = 0; a < A; a++) // updates the weight array with the found nearest miss and nearest hit instances.
             {
                 W[a] += ((abs(attributes[i][a] - attributes[nearestMissInstance][a])) / (max[a] - min[a])) / M;
                 W[a] -= ((abs(attributes[i][a] - attributes[nearestHitInstance][a])) / (max[a] - min[a])) / M;
             }
         }
 
-        double minimumWeight = INTMAX_MAX;
-        int minimumWeightIndex = 0;
+        double minimumWeight = INTMAX_MAX; // used as a lower bound for minimum weights.
+        int minimumWeightIndex = 0; // index of the minimum weighted instance in highestWeightedAttributes[]
 
-        for (int t = 0; t < T; t++)
+        for (int t = 0; t < T; t++) // puts the first T elements of the W[] into highestWeightedAttributes[]
         {
             highestWeightedAttributes[t] = t;
-            if (W[t] < minimumWeight)
+            if (W[t] < minimumWeight) // holds the minimum weighted instance and the weight of it in the case of replacement.
             {
                 minimumWeightIndex = t;
                 minimumWeight = W[t];
             }
         }
-        for (int a = T; a < A; a++)
+
+        // after the Tth element it checks the other elements of the W array and 
+        // replaces the minimum element in highestWeightedAttributes with the  
+        // element of W[] larger than the minimumWeight. 
+        // After that it finds the new minimumWeight and updates the minimumWeightIndex.
+        for (int a = T; a < A; a++)  
         {
             if (W[a] > minimumWeight)
             {
@@ -162,8 +169,9 @@ int main(int argc, char *argv[])
                 }
             }
         }
-        sort(highestWeightedAttributes, highestWeightedAttributes + T);
-        printf("Slave P%d: ", rank);
+
+        sort(highestWeightedAttributes, highestWeightedAttributes + T); // sorts the highestWeightedAttributes.
+        printf("Slave P%d: ", rank); // prints the slave part of the output.
         for (int b = 0; b < T; b++)
         {
             printf("%d ", highestWeightedAttributes[b]);
@@ -176,13 +184,13 @@ int main(int argc, char *argv[])
 
     if (rank == 0)
     {
-        printf("Master P0: ");
+        printf("Master P0: "); // prints the master part of the output.
         sort(gatheredHighestWeightedAttributes+T, gatheredHighestWeightedAttributes+P*T);
         for(int i = T; i < (P)*T-1; i++) {
             if(gatheredHighestWeightedAttributes[i] != gatheredHighestWeightedAttributes[i+1])
                 printf("%d ", gatheredHighestWeightedAttributes[i]);
         }
-        printf("%d\n", gatheredHighestWeightedAttributes[P*T-1]);
+        printf("%d", gatheredHighestWeightedAttributes[P*T-1]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
